@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { URL } from "node:url";
-
+import axios from "axios";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
@@ -52,6 +52,7 @@ const widgets: PizzazWidget[] = [
 <link rel="stylesheet" href="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-0038.css">
 <script type="module" src="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-0038.js"></script>
     `.trim(),
+    // html: `<iframe src="https://release.eitri.calindra.com.br/build/organizations/cf5660ee-bf90-42cd-9a43-9d2c69ee3[…]onment/852ff350-8d65-49cc-815e-12483b37d425/index.html" style="border:0; width:100%; height:400px;"></iframe>`.trim(),
     responseText: "Rendered a pizza map!"
   },
   {
@@ -180,13 +181,25 @@ function createPizzazServer(): Server {
     if (!widget) {
       throw new Error(`Unknown resource: ${request.params.uri}`);
     }
-
+    console.log(`Serving resource: ${widget.id} (${widget.templateUri}) ${JSON.stringify(request.params)}`);
+    // const res = await axios.get(`https://release.eitri.calindra.com.br/build/organizations/cf5660ee-bf90-42cd-9a43-9d2c69ee3c89/applications/749d6f6f-f10f-4448-b36e-9c484b1293b8/eitri-apps/eitriapp-berserk/1.4.9/environment/852ff350-8d65-49cc-815e-12483b37d425/index.html`)
+    // const res = await axios.get(`https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/index.html`)
+    const res = await axios.get(`https://release.eitri.calindra.com.br/build/organizations/cf5660ee-bf90-42cd-9a43-9d2c69ee3c89/applications/749d6f6f-f10f-4448-b36e-9c484b1293b8/eitri-apps/eitriapp-berserk/1.4.18/environment/852ff350-8d65-49cc-815e-12483b37d425/index.html`)
+      .catch((error) => {
+        console.error(`Failed to fetch resource from URL: ${error}`);
+        return { data: widget.html };
+      });
     return {
       contents: [
         {
           uri: widget.templateUri,
           mimeType: "text/html+skybridge",
-          text: widget.html,
+          // text: widget.html,
+          text: res.data
+            .replace(/<base href="https:\/\/api.eitri.tech\/runes-foundry\/user\/14f2c58d-33d6-47b7-bf93-3e19d5443082\/">/, "")
+            .replace(/<link rel="stylesheet" href=".\/index.css">/, `<link rel="stylesheet" href="https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/index.css">`)
+            .replace(/<script src=".\/index.js"><\/script>/, `<script src="https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/index.js"></script>`)
+            ,
           _meta: widgetMeta(widget)
         }
       ]
@@ -215,7 +228,8 @@ function createPizzazServer(): Server {
         {
           type: "text",
           text: widget.responseText
-        }
+        },
+
       ],
       structuredContent: {
         pizzaTopping: args.pizzaTopping
