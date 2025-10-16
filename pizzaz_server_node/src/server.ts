@@ -36,7 +36,15 @@ function widgetMeta(widget: PizzazWidget) {
     "openai/toolInvocation/invoking": widget.invoking,
     "openai/toolInvocation/invoked": widget.invoked,
     "openai/widgetAccessible": true,
-    "openai/resultCanProduceWidget": true
+    "openai/resultCanProduceWidget": true,
+    "openai/widgetCSP": {
+      connect_domains: [],
+      resource_domains: [
+        "https://persistent.oaistatic.com",
+        "https://api.eitri.tech",
+        "https://release.eitri.calindra.com.br"
+      ],
+    }
   } as const;
 }
 
@@ -47,12 +55,13 @@ const widgets: PizzazWidget[] = [
     templateUri: "ui://widget/pizza-map.html",
     invoking: "Hand-tossing a map",
     invoked: "Served a fresh map",
-    html: `
-<div id="pizzaz-root"></div>
-<link rel="stylesheet" href="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-0038.css">
-<script type="module" src="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-0038.js"></script>
-    `.trim(),
-    // html: `<iframe src="https://release.eitri.calindra.com.br/build/organizations/cf5660ee-bf90-42cd-9a43-9d2c69ee3[…]onment/852ff350-8d65-49cc-815e-12483b37d425/index.html" style="border:0; width:100%; height:400px;"></iframe>`.trim(),
+//     html: `
+// <div id="pizzaz-root"></div>
+// <link rel="stylesheet" href="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-0038.css">
+// <script type="module" src="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-0038.js"></script>
+//     `.trim(),
+    html: `<script>document.write('Olá Mundo')</script>`.trim(),
+    // html: `<iframe src="https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/index.html" style="width: 100%; height: 500px; border: none;"></iframe>`.trim(),
     responseText: "Rendered a pizza map!"
   },
   {
@@ -194,12 +203,12 @@ function createPizzazServer(): Server {
         {
           uri: widget.templateUri,
           mimeType: "text/html+skybridge",
-          // text: widget.html,
-          text: res.data
-            .replace(/<base href="https:\/\/api.eitri.tech\/runes-foundry\/user\/14f2c58d-33d6-47b7-bf93-3e19d5443082\/">/, "")
-            .replace(/<link rel="stylesheet" href=".\/index.css">/, `<link rel="stylesheet" href="https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/index.css">`)
-            .replace(/<script src=".\/index.js"><\/script>/, `<script src="https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/index.js"></script>`)
-            ,
+          text: widget.html,
+          // text: res.data
+          //   .replace(/<base href="https:\/\/api.eitri.tech\/runes-foundry\/user\/14f2c58d-33d6-47b7-bf93-3e19d5443082\/">/, "")
+          //   .replace(/<link rel="stylesheet" href=".\/index.css">/, `<link rel="stylesheet" href="https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/index.css">`)
+          //   .replace(/<script src=".\/index.js"><\/script>/, `<script src="https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/index.js"></script>`)
+          // ,
           _meta: widgetMeta(widget)
         }
       ]
