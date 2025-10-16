@@ -194,7 +194,7 @@ function createPizzazServer(): Server {
         });
 
       const bifrost = fs.readFileSync(
-        path.join(process.cwd(), "src", "./bifrost.txt"),
+        path.join(process.cwd(), "src", "./bifrost.js"),
         "utf8"
       );
 
