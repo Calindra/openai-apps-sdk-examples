@@ -198,6 +198,7 @@ function createPizzazServer(): Server {
         "utf8"
       );
 
+      const workspaceId = "14f2c58d-33d6-47b7-bf93-3e19d5443082";
       return {
         contents: [
           {
@@ -216,20 +217,20 @@ function createPizzazServer(): Server {
             // text: widget.html,
             text: res.data
               .replace(
-                /<base href="https:\/\/api.eitri.tech\/runes-foundry\/user\/14f2c58d-33d6-47b7-bf93-3e19d5443082\/">/,
+                /<base href="https:\/\/api.eitri.tech\/runes-foundry\/user\/[0-9a-z\-]+\/">/,
                 ""
               )
               .replace(
                 /<link rel="stylesheet" href=".\/index.css">/,
-                `<link rel="stylesheet" href="https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/index.css">`
+                `<link rel="stylesheet" href="https://api.eitri.tech/runes-foundry/user/${workspaceId}/index.css">`
               )
               .replace(
                 /<script src=".\/index.js"><\/script>/,
-                `<script src="https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/index.js"></script>`
+                `<script src="https://api.eitri.tech/runes-foundry/user/${workspaceId}/index.js"></script>`
               )
               .replace(
                 /<script data-remove-on-publish="true" src=".\/common\/ConsoleProxy.js"><\/script>/,
-                `<script src="https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/common/ConsoleProxy.js"></script>`
+                `<script src="https://api.eitri.tech/runes-foundry/user/${workspaceId}/common/ConsoleProxy.js"></script>`
               )
               .replace(
                 /<script crossorigin="" src="https:\/\/cdn.83io.com.br\/library\/eitri-bifrost\/assets\/3.10.0\/eitri-bifrost-3.10.0.js"><\/script>/,
