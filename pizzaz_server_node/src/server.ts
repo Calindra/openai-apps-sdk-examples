@@ -1,4 +1,8 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import { URL } from "node:url";
 import axios from "axios";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -16,9 +20,11 @@ import {
   type ReadResourceRequest,
   type Resource,
   type ResourceTemplate,
-  type Tool
+  type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import fs from "node:fs";
+import path from "node:path";
 
 type PizzazWidget = {
   id: string;
@@ -36,77 +42,57 @@ function widgetMeta(widget: PizzazWidget) {
     "openai/toolInvocation/invoking": widget.invoking,
     "openai/toolInvocation/invoked": widget.invoked,
     "openai/widgetAccessible": true,
-    "openai/resultCanProduceWidget": true
+    "openai/resultCanProduceWidget": true,
+    // "openai/widgetCSP": {
+    //   connect_domains: [
+    //     "https://*.vtexcommercestable.com.br",
+    //     "https://*.tailwindcss.com",
+    //     "https://*.jsdelivr.net",
+    //     "https://unpkg.com",
+    //     "https://*.oaiusercontent.com",
+    //     "https://threejs.org",
+    //     "https://*.83io.com.br",
+    //     "https://*.eitri.tech",
+    //     "https://api.openai.com",
+    //     "https://*.calindra.com.br",
+    //     "https://googletagmanager.com",
+    //     "https://*.googleapis.com",
+    //     "https://*.gstatic.com",
+    //   ],
+    //   resource_domains: [
+    //     "https://*.vtexcommercestable.com.br",
+    //     "https://*.tailwindcss.com",
+    //     "https://*.jsdelivr.net",
+    //     "https://unpkg.com",
+    //     "https://*.oaiusercontent.com",
+    //     "https://threejs.org",
+    //     "https://*.83io.com.br",
+    //     "https://api.eitri.tech",
+    //     "https://api.openai.com",
+    //     "https://*.calindra.com.br",
+    //     "https://googletagmanager.com",
+    //     "https://*.googleapis.com",
+    //     "https://*.gstatic.com",
+    //   ],
+    // },
   } as const;
 }
 
 const widgets: PizzazWidget[] = [
   {
-    id: "pizza-map",
-    title: "Show Pizza Map",
-    templateUri: "ui://widget/pizza-map.html",
-    invoking: "Hand-tossing a map",
-    invoked: "Served a fresh map",
+    id: "eitri-shopping",
+    title: "Show Eitri Shopping",
+    templateUri: "ui://widget/eitri-shopping.html",
+    invoking: "Hand-tossing a Eitri Shopping",
+    invoked: "Served a fresh Eitri Shopping",
     html: `
 <div id="pizzaz-root"></div>
 <link rel="stylesheet" href="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-0038.css">
 <script type="module" src="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-0038.js"></script>
     `.trim(),
     // html: `<iframe src="https://release.eitri.calindra.com.br/build/organizations/cf5660ee-bf90-42cd-9a43-9d2c69ee3[…]onment/852ff350-8d65-49cc-815e-12483b37d425/index.html" style="border:0; width:100%; height:400px;"></iframe>`.trim(),
-    responseText: "Rendered a pizza map!"
+    responseText: "Rendered a Shopping with Eitri!",
   },
-  {
-    id: "pizza-carousel",
-    title: "Show Pizza Carousel",
-    templateUri: "ui://widget/pizza-carousel.html",
-    invoking: "Carousel some spots",
-    invoked: "Served a fresh carousel",
-    html: `
-<div id="pizzaz-carousel-root"></div>
-<link rel="stylesheet" href="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-carousel-0038.css">
-<script type="module" src="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-carousel-0038.js"></script>
-    `.trim(),
-    responseText: "Rendered a pizza carousel!"
-  },
-  {
-    id: "pizza-albums",
-    title: "Show Pizza Album",
-    templateUri: "ui://widget/pizza-albums.html",
-    invoking: "Hand-tossing an album",
-    invoked: "Served a fresh album",
-    html: `
-<div id="pizzaz-albums-root"></div>
-<link rel="stylesheet" href="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-albums-0038.css">
-<script type="module" src="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-albums-0038.js"></script>
-    `.trim(),
-    responseText: "Rendered a pizza album!"
-  },
-  {
-    id: "pizza-list",
-    title: "Show Pizza List",
-    templateUri: "ui://widget/pizza-list.html",
-    invoking: "Hand-tossing a list",
-    invoked: "Served a fresh list",
-    html: `
-<div id="pizzaz-list-root"></div>
-<link rel="stylesheet" href="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-list-0038.css">
-<script type="module" src="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-list-0038.js"></script>
-    `.trim(),
-    responseText: "Rendered a pizza list!"
-  },
-  {
-    id: "pizza-video",
-    title: "Show Pizza Video",
-    templateUri: "ui://widget/pizza-video.html",
-    invoking: "Hand-tossing a video",
-    invoked: "Served a fresh video",
-    html: `
-<div id="pizzaz-video-root"></div>
-<link rel="stylesheet" href="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-video-0038.css">
-<script type="module" src="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-video-0038.js"></script>
-    `.trim(),
-    responseText: "Rendered a pizza video!"
-  }
 ];
 
 const widgetsById = new Map<string, PizzazWidget>();
@@ -122,15 +108,15 @@ const toolInputSchema = {
   properties: {
     pizzaTopping: {
       type: "string",
-      description: "Topping to mention when rendering the widget."
-    }
+      description: "Topping to mention when rendering the widget.",
+    },
   },
   required: ["pizzaTopping"],
-  additionalProperties: false
+  additionalProperties: false,
 } as const;
 
 const toolInputParser = z.object({
-  pizzaTopping: z.string()
+  pizzaTopping: z.string(),
 });
 
 const tools: Tool[] = widgets.map((widget) => ({
@@ -138,7 +124,7 @@ const tools: Tool[] = widgets.map((widget) => ({
   description: widget.title,
   inputSchema: toolInputSchema,
   title: widget.title,
-  _meta: widgetMeta(widget)
+  _meta: widgetMeta(widget),
 }));
 
 const resources: Resource[] = widgets.map((widget) => ({
@@ -146,7 +132,7 @@ const resources: Resource[] = widgets.map((widget) => ({
   name: widget.title,
   description: `${widget.title} widget markup`,
   mimeType: "text/html+skybridge",
-  _meta: widgetMeta(widget)
+  _meta: widgetMeta(widget),
 }));
 
 const resourceTemplates: ResourceTemplate[] = widgets.map((widget) => ({
@@ -154,89 +140,153 @@ const resourceTemplates: ResourceTemplate[] = widgets.map((widget) => ({
   name: widget.title,
   description: `${widget.title} widget markup`,
   mimeType: "text/html+skybridge",
-  _meta: widgetMeta(widget)
+  _meta: widgetMeta(widget),
 }));
 
 function createPizzazServer(): Server {
   const server = new Server(
     {
       name: "pizzaz-node",
-      version: "0.1.0"
+      version: "0.1.0",
     },
     {
       capabilities: {
         resources: {},
-        tools: {}
-      }
+        tools: {},
+      },
     }
   );
 
-  server.setRequestHandler(ListResourcesRequestSchema, async (_request: ListResourcesRequest) => ({
-    resources
-  }));
+  server.setRequestHandler(
+    ListResourcesRequestSchema,
+    async (_request: ListResourcesRequest) => ({
+      resources,
+    })
+  );
 
-  server.setRequestHandler(ReadResourceRequestSchema, async (request: ReadResourceRequest) => {
-    const widget = widgetsByUri.get(request.params.uri);
+  server.setRequestHandler(
+    ReadResourceRequestSchema,
+    async (request: ReadResourceRequest) => {
+      const widget = widgetsByUri.get(request.params.uri);
 
-    if (!widget) {
-      throw new Error(`Unknown resource: ${request.params.uri}`);
+      if (!widget) {
+        throw new Error(`Unknown resource: ${request.params.uri}`);
+      }
+      console.log(
+        `Serving resource: ${widget.id} (${
+          widget.templateUri
+        }) ${JSON.stringify(request.params)}`
+      );
+      // const res = await axios.get(`https://release.eitri.calindra.com.br/build/organizations/cf5660ee-bf90-42cd-9a43-9d2c69ee3c89/applications/749d6f6f-f10f-4448-b36e-9c484b1293b8/eitri-apps/eitriapp-berserk/1.4.9/environment/852ff350-8d65-49cc-815e-12483b37d425/index.html`)
+      // const res = await axios.get(`https://release.eitri.calindra.com.br/build/organizations/cf5660ee-bf90-42cd-9a43-9d2c69ee3c89/applications/749d6f6f-f10f-4448-b36e-9c484b1293b8/eitri-apps/eitriapp-berserk/1.4.18/environment/852ff350-8d65-49cc-815e-12483b37d425/index.html`)
+
+      // const res = await axios
+      //   .get(
+      //     `http://localhost:3000/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/agents/widgets/index.js`
+      //   )
+      const res = await axios
+        .get(
+          `https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/index.html`
+        )
+        .catch((error) => {
+          console.error(`Failed to fetch resource from URL: ${error}`);
+          return { data: widget.html };
+        });
+
+      const bifrost = fs.readFileSync(
+        path.join(process.cwd(), "src", "./bifrost.txt"),
+        "utf8"
+      );
+
+      return {
+        contents: [
+          {
+            uri: widget.templateUri,
+            mimeType: "text/html+skybridge",
+            // text: `
+            // <html>
+            //   <body>
+            //     <div id="pizzaz-root"></div>
+            //     <script>
+            //       ${res.data}
+            //     </script>
+            //   </body>
+            // </html>
+            // `,
+            // text: widget.html,
+            text: res.data
+              .replace(
+                /<base href="https:\/\/api.eitri.tech\/runes-foundry\/user\/14f2c58d-33d6-47b7-bf93-3e19d5443082\/">/,
+                ""
+              )
+              .replace(
+                /<link rel="stylesheet" href=".\/index.css">/,
+                `<link rel="stylesheet" href="https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/index.css">`
+              )
+              .replace(
+                /<script src=".\/index.js"><\/script>/,
+                `<script src="https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/index.js"></script>`
+              )
+              .replace(
+                /<script data-remove-on-publish="true" src=".\/common\/ConsoleProxy.js"><\/script>/,
+                `<script src="https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/common/ConsoleProxy.js"></script>`
+              )
+              .replace(
+                /<script crossorigin="" src="https:\/\/cdn.83io.com.br\/library\/eitri-bifrost\/assets\/3.10.0\/eitri-bifrost-3.10.0.js"><\/script>/,
+                `
+                <script crossorigin="" src="https://cdn.83io.com.br/library/eitri-bifrost/assets/3.10.0/eitri-bifrost-3.10.0.js"></script>
+                <script>
+                  ${bifrost}
+                </script>
+                
+                `
+              ),
+            _meta: widgetMeta(widget),
+          },
+        ],
+      };
     }
-    console.log(`Serving resource: ${widget.id} (${widget.templateUri}) ${JSON.stringify(request.params)}`);
-    // const res = await axios.get(`https://release.eitri.calindra.com.br/build/organizations/cf5660ee-bf90-42cd-9a43-9d2c69ee3c89/applications/749d6f6f-f10f-4448-b36e-9c484b1293b8/eitri-apps/eitriapp-berserk/1.4.9/environment/852ff350-8d65-49cc-815e-12483b37d425/index.html`)
-    // const res = await axios.get(`https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/index.html`)
-    const res = await axios.get(`https://release.eitri.calindra.com.br/build/organizations/cf5660ee-bf90-42cd-9a43-9d2c69ee3c89/applications/749d6f6f-f10f-4448-b36e-9c484b1293b8/eitri-apps/eitriapp-berserk/1.4.18/environment/852ff350-8d65-49cc-815e-12483b37d425/index.html`)
-      .catch((error) => {
-        console.error(`Failed to fetch resource from URL: ${error}`);
-        return { data: widget.html };
-      });
-    return {
-      contents: [
-        {
-          uri: widget.templateUri,
-          mimeType: "text/html+skybridge",
-          // text: widget.html,
-          text: res.data
-            .replace(/<base href="https:\/\/api.eitri.tech\/runes-foundry\/user\/14f2c58d-33d6-47b7-bf93-3e19d5443082\/">/, "")
-            .replace(/<link rel="stylesheet" href=".\/index.css">/, `<link rel="stylesheet" href="https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/index.css">`)
-            .replace(/<script src=".\/index.js"><\/script>/, `<script src="https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/index.js"></script>`)
-            ,
-          _meta: widgetMeta(widget)
-        }
-      ]
-    };
-  });
+  );
 
-  server.setRequestHandler(ListResourceTemplatesRequestSchema, async (_request: ListResourceTemplatesRequest) => ({
-    resourceTemplates
-  }));
+  server.setRequestHandler(
+    ListResourceTemplatesRequestSchema,
+    async (_request: ListResourceTemplatesRequest) => ({
+      resourceTemplates,
+    })
+  );
 
-  server.setRequestHandler(ListToolsRequestSchema, async (_request: ListToolsRequest) => ({
-    tools
-  }));
+  server.setRequestHandler(
+    ListToolsRequestSchema,
+    async (_request: ListToolsRequest) => ({
+      tools,
+    })
+  );
 
-  server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest) => {
-    const widget = widgetsById.get(request.params.name);
+  server.setRequestHandler(
+    CallToolRequestSchema,
+    async (request: CallToolRequest) => {
+      const widget = widgetsById.get(request.params.name);
 
-    if (!widget) {
-      throw new Error(`Unknown tool: ${request.params.name}`);
-    }
+      if (!widget) {
+        throw new Error(`Unknown tool: ${request.params.name}`);
+      }
 
-    const args = toolInputParser.parse(request.params.arguments ?? {});
+      const args = toolInputParser.parse(request.params.arguments ?? {});
 
-    return {
-      content: [
-        {
-          type: "text",
-          text: widget.responseText
+      return {
+        content: [
+          {
+            type: "text",
+            text: widget.responseText,
+          },
+        ],
+        structuredContent: {
+          pizzaTopping: args.pizzaTopping,
         },
-
-      ],
-      structuredContent: {
-        pizzaTopping: args.pizzaTopping
-      },
-      _meta: widgetMeta(widget)
-    };
-  });
+        _meta: widgetMeta(widget),
+      };
+    }
+  );
 
   return server;
 }
@@ -313,36 +363,41 @@ async function handlePostMessage(
 const portEnv = Number(process.env.PORT ?? 8000);
 const port = Number.isFinite(portEnv) ? portEnv : 8000;
 
-const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-  if (!req.url) {
-    res.writeHead(400).end("Missing URL");
-    return;
+const httpServer = createServer(
+  async (req: IncomingMessage, res: ServerResponse) => {
+    if (!req.url) {
+      res.writeHead(400).end("Missing URL");
+      return;
+    }
+
+    const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+
+    if (
+      req.method === "OPTIONS" &&
+      (url.pathname === ssePath || url.pathname === postPath)
+    ) {
+      res.writeHead(204, {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "content-type",
+      });
+      res.end();
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === ssePath) {
+      await handleSseRequest(res);
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === postPath) {
+      await handlePostMessage(req, res, url);
+      return;
+    }
+
+    res.writeHead(404).end("Not Found");
   }
-
-  const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
-
-  if (req.method === "OPTIONS" && (url.pathname === ssePath || url.pathname === postPath)) {
-    res.writeHead(204, {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "content-type"
-    });
-    res.end();
-    return;
-  }
-
-  if (req.method === "GET" && url.pathname === ssePath) {
-    await handleSseRequest(res);
-    return;
-  }
-
-  if (req.method === "POST" && url.pathname === postPath) {
-    await handlePostMessage(req, res, url);
-    return;
-  }
-
-  res.writeHead(404).end("Not Found");
-});
+);
 
 httpServer.on("clientError", (err: Error, socket) => {
   console.error("HTTP client error", err);
@@ -352,5 +407,7 @@ httpServer.on("clientError", (err: Error, socket) => {
 httpServer.listen(port, () => {
   console.log(`Pizzaz MCP server listening on http://localhost:${port}`);
   console.log(`  SSE stream: GET http://localhost:${port}${ssePath}`);
-  console.log(`  Message post endpoint: POST http://localhost:${port}${postPath}?sessionId=...`);
+  console.log(
+    `  Message post endpoint: POST http://localhost:${port}${postPath}?sessionId=...`
+  );
 });
