@@ -119,13 +119,77 @@ const toolInputParser = z.object({
   pizzaTopping: z.string(),
 });
 
-const tools: Tool[] = widgets.map((widget) => ({
+// Standalone tools configuration
+type StandaloneTool = {
+  name: string;
+  description: string;
+  inputSchema: Record<string, any>;
+  handler: (args: any) => Promise<any>;
+};
+
+const standaloneTools: StandaloneTool[] = [
+  {
+    name: "get_products",
+    description: "Fetches a list of available products from the catalog",
+    inputSchema: {
+      type: "object",
+      properties: {
+        category: {
+          type: "string",
+          description: "Optional category to filter products",
+        },
+        limit: {
+          type: "number",
+          description: "Maximum number of products to return (default: 10)",
+        },
+      },
+      additionalProperties: false,
+    },
+    handler: async (args: { category?: string; limit?: number }) => {
+      // Mock implementation - replace with actual API call
+      const mockProducts = [
+        { id: 1, name: "Product A", category: "electronics", price: 299.99 },
+        { id: 2, name: "Product B", category: "electronics", price: 499.99 },
+        { id: 3, name: "Product C", category: "clothing", price: 49.99 },
+        { id: 4, name: "Product D", category: "clothing", price: 79.99 },
+        { id: 5, name: "Product E", category: "books", price: 19.99 },
+      ];
+
+      let filtered = mockProducts;
+
+      if (args.category) {
+        filtered = filtered.filter((p) => p.category === args.category);
+      }
+
+      const limit = args.limit || 10;
+      filtered = filtered.slice(0, limit);
+
+      return {
+        products: filtered,
+        total: filtered.length,
+      };
+    },
+  },
+];
+
+// Widget-based tools
+const widgetTools: Tool[] = widgets.map((widget) => ({
   name: widget.id,
   description: widget.title,
   inputSchema: toolInputSchema,
   title: widget.title,
   _meta: widgetMeta(widget),
 }));
+
+// Standalone tools as MCP tools
+const mcpStandaloneTools: Tool[] = standaloneTools.map((tool) => ({
+  name: tool.name,
+  description: tool.description,
+  inputSchema: tool.inputSchema,
+}));
+
+// Combined tools list
+const tools: Tool[] = [...widgetTools, ...mcpStandaloneTools];
 
 const resources: Resource[] = widgets.map((widget) => ({
   uri: widget.templateUri,
@@ -177,6 +241,8 @@ function createPizzazServer(): Server {
           widget.templateUri
         }) ${JSON.stringify(request.params)}`
       );
+      const workspaceId = "14f2c58d-33d6-47b7-bf93-3e19d5443082";
+
       // const res = await axios.get(`https://release.eitri.calindra.com.br/build/organizations/cf5660ee-bf90-42cd-9a43-9d2c69ee3c89/applications/749d6f6f-f10f-4448-b36e-9c484b1293b8/eitri-apps/eitriapp-berserk/1.4.9/environment/852ff350-8d65-49cc-815e-12483b37d425/index.html`)
       // const res = await axios.get(`https://release.eitri.calindra.com.br/build/organizations/cf5660ee-bf90-42cd-9a43-9d2c69ee3c89/applications/749d6f6f-f10f-4448-b36e-9c484b1293b8/eitri-apps/eitriapp-berserk/1.4.18/environment/852ff350-8d65-49cc-815e-12483b37d425/index.html`)
 
@@ -186,7 +252,7 @@ function createPizzazServer(): Server {
       //   )
       const res = await axios
         .get(
-          `https://api.eitri.tech/runes-foundry/user/14f2c58d-33d6-47b7-bf93-3e19d5443082/index.html`
+          `https://api.eitri.tech/runes-foundry/user/${workspaceId}/index.html`
         )
         .catch((error) => {
           console.error(`Failed to fetch resource from URL: ${error}`);
@@ -198,23 +264,11 @@ function createPizzazServer(): Server {
         "utf8"
       );
 
-      const workspaceId = "14f2c58d-33d6-47b7-bf93-3e19d5443082";
       return {
         contents: [
           {
             uri: widget.templateUri,
             mimeType: "text/html+skybridge",
-            // text: `
-            // <html>
-            //   <body>
-            //     <div id="pizzaz-root"></div>
-            //     <script>
-            //       ${res.data}
-            //     </script>
-            //   </body>
-            // </html>
-            // `,
-            // text: widget.html,
             text: res.data
               .replace(
                 /<base href="https:\/\/api.eitri.tech\/runes-foundry\/user\/[0-9a-z\-]+\/">/,
@@ -266,10 +320,28 @@ function createPizzazServer(): Server {
   server.setRequestHandler(
     CallToolRequestSchema,
     async (request: CallToolRequest) => {
-      const widget = widgetsById.get(request.params.name);
+      const toolName = request.params.name;
 
+      // Check if it's a standalone tool
+      const standaloneTool = standaloneTools.find((t) => t.name === toolName);
+      if (standaloneTool) {
+        const result = await standaloneTool.handler(
+          request.params.arguments ?? {}
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      // Check if it's a widget tool
+      const widget = widgetsById.get(toolName);
       if (!widget) {
-        throw new Error(`Unknown tool: ${request.params.name}`);
+        throw new Error(`Unknown tool: ${toolName}`);
       }
 
       const args = toolInputParser.parse(request.params.arguments ?? {});
