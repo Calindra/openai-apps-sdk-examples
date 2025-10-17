@@ -8,7 +8,17 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "eitri-bifrost": [
+        "./src/eitri-bifrost-substitute.ts",
+        "./dist/lambda/eitri-bifrost-substitute.js"
+      ]
+    },
   },
-  "include": ["src/**/*.ts"]
+  "include": [
+    "src/**/*.ts"
+  ]
 }

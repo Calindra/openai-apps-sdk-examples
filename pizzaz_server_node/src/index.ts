@@ -25,8 +25,10 @@ import {
 import { z } from "zod";
 import fs from "node:fs";
 import path from "node:path";
+import { Vtex } from "./VtexAPI";
+import VtexConfig from "./VtexConfig";
 
-type PizzazWidget = {
+type EitriWidget = {
   id: string;
   title: string;
   templateUri: string;
@@ -36,7 +38,18 @@ type PizzazWidget = {
   responseText: string;
 };
 
-function widgetMeta(widget: PizzazWidget) {
+VtexConfig.configs = {
+  ecommerceProvider: "VTEX",
+  providerInfo: {
+    account: "torratorra",
+    faststore: "torra",
+    vtexCmsUrl: "https://torratorra.myvtex.com/",
+    host: "www.lojastorra.com.br/api/io",
+  },
+  api: "https://torratorra.myvtex.com",
+};
+
+function widgetMeta(widget: EitriWidget) {
   return {
     "openai/outputTemplate": widget.templateUri,
     "openai/toolInvocation/invoking": widget.invoking,
@@ -78,7 +91,7 @@ function widgetMeta(widget: PizzazWidget) {
   } as const;
 }
 
-const widgets: PizzazWidget[] = [
+const widgets: EitriWidget[] = [
   {
     id: "eitri-shopping",
     title: "Show Eitri Shopping",
@@ -86,17 +99,15 @@ const widgets: PizzazWidget[] = [
     invoking: "Hand-tossing a Eitri Shopping",
     invoked: "Served a fresh Eitri Shopping",
     html: `
-<div id="pizzaz-root"></div>
-<link rel="stylesheet" href="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-0038.css">
-<script type="module" src="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-0038.js"></script>
+<h1>Oops! This is an Eitri Shopping widget.</h1>
     `.trim(),
     // html: `<iframe src="https://release.eitri.calindra.com.br/build/organizations/cf5660ee-bf90-42cd-9a43-9d2c69ee3[…]onment/852ff350-8d65-49cc-815e-12483b37d425/index.html" style="border:0; width:100%; height:400px;"></iframe>`.trim(),
     responseText: "Rendered a Shopping with Eitri!",
   },
 ];
 
-const widgetsById = new Map<string, PizzazWidget>();
-const widgetsByUri = new Map<string, PizzazWidget>();
+const widgetsById = new Map<string, EitriWidget>();
+const widgetsByUri = new Map<string, EitriWidget>();
 
 widgets.forEach((widget) => {
   widgetsById.set(widget.id, widget);
@@ -106,17 +117,23 @@ widgets.forEach((widget) => {
 const toolInputSchema = {
   type: "object",
   properties: {
-    pizzaTopping: {
+    intention: {
       type: "string",
-      description: "Topping to mention when rendering the widget.",
+      description:
+        "The intention of user, if request something related to shopping and have some tool to help.",
+    },
+    query: {
+      type: "string",
+      description: "The query string to search for products.",
     },
   },
-  required: ["pizzaTopping"],
+  required: ["intention"],
   additionalProperties: false,
 } as const;
 
 const toolInputParser = z.object({
-  pizzaTopping: z.string(),
+  intention: z.string(),
+  query: z.string(),
 });
 
 // Standalone tools configuration
@@ -129,45 +146,210 @@ type StandaloneTool = {
 
 const standaloneTools: StandaloneTool[] = [
   {
-    name: "get_products",
-    description: "Fetches a list of available products from the catalog",
+    name: "searchProducts",
+    description: "Searches for products using a query string",
     inputSchema: {
       type: "object",
       properties: {
-        category: {
+        query: {
           type: "string",
-          description: "Optional category to filter products",
+          description: "Search query string",
         },
-        limit: {
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+    handler: async (args: { query: string }) => {
+      const products = await Vtex.catalog.searchProduct(args.query);
+      return products;
+    },
+  },
+  {
+    name: "getProduct",
+    description: "Retrieves the details of a specific product",
+    inputSchema: {
+      type: "object",
+      properties: {
+        productId: {
+          type: "string",
+          description: "The ID of the product to retrieve",
+        },
+      },
+      required: ["productId"],
+      additionalProperties: false,
+    },
+    handler: async (args: { productId: string }) => {
+      const product = await Vtex.catalog.getProductById(args.productId);
+      return product;
+    },
+  },
+  {
+    name: "getCart",
+    description: "Retrieves the contents of a shopping cart",
+    inputSchema: {
+      type: "object",
+      properties: {
+        orderFormId: {
+          type: "string",
+          description: "The ID of the order form (cart)",
+        },
+      },
+      required: ["orderFormId"],
+      additionalProperties: false,
+    },
+    handler: async (args: { orderFormId: string }) => {
+      const cart = await Vtex.cart.getCartById(args.orderFormId);
+      return cart;
+    },
+  },
+  {
+    name: "addToCart",
+    description: "Adds an item to the shopping cart",
+    inputSchema: {
+      type: "object",
+      properties: {
+        orderFormId: {
+          type: "string",
+          description: "The ID of the order form (cart)",
+        },
+        items: {
+          type: "array",
+          description: "Array of items to add to cart",
+          items: {
+            type: "object",
+            properties: {
+              id: {
+                type: "string",
+                description: "Product SKU ID",
+              },
+              quantity: {
+                type: "number",
+                description: "Quantity to add",
+              },
+              seller: {
+                type: "string",
+                description: "Seller ID",
+              },
+            },
+            required: ["id", "quantity", "seller"],
+          },
+        },
+      },
+      required: ["orderFormId", "items"],
+      additionalProperties: false,
+    },
+    handler: async (args: {
+      orderFormId: string;
+      items: Array<{ id: string; quantity: number; seller: string }>;
+    }) => {
+      if (args.items.length > 0) {
+        const cart = await Vtex.cart.addItem(args.items[0]);
+        return cart;
+      } else {
+        return { message: "No items provided to add to cart" };
+      }
+    },
+  },
+  {
+    name: "removeItemsFromCart",
+    description: "Removes an item from the shopping cart",
+    inputSchema: {
+      type: "object",
+      properties: {
+        orderFormId: {
+          type: "string",
+          description: "The ID of the order form (cart)",
+        },
+        index: {
           type: "number",
-          description: "Maximum number of products to return (default: 10)",
+          description: "Index of the item to remove",
+        },
+      },
+      required: ["orderFormId", "index"],
+      additionalProperties: false,
+    },
+    handler: async (args: { orderFormId: string; index: number }) => {
+      const cart = await Vtex.cart.removeItem(args.index);
+      return cart;
+    },
+  },
+  {
+    name: "listOrders",
+    description: "Retrieves a list of orders for a specific customer",
+    inputSchema: {
+      type: "object",
+      properties: {
+        page: {
+          type: "number",
+          description: "Page number for pagination (default: 1)",
+        },
+        includeProfileLastPurchases: {
+          type: "boolean",
+          description: "Include profile last purchases",
         },
       },
       additionalProperties: false,
     },
-    handler: async (args: { category?: string; limit?: number }) => {
-      // Mock implementation - replace with actual API call
-      const mockProducts = [
-        { id: 1, name: "Product A", category: "electronics", price: 299.99 },
-        { id: 2, name: "Product B", category: "electronics", price: 499.99 },
-        { id: 3, name: "Product C", category: "clothing", price: 49.99 },
-        { id: 4, name: "Product D", category: "clothing", price: 79.99 },
-        { id: 5, name: "Product E", category: "books", price: 19.99 },
-      ];
-
-      let filtered = mockProducts;
-
-      if (args.category) {
-        filtered = filtered.filter((p) => p.category === args.category);
-      }
-
-      const limit = args.limit || 10;
-      filtered = filtered.slice(0, limit);
-
-      return {
-        products: filtered,
-        total: filtered.length,
-      };
+    handler: async (args: {
+      page?: number;
+      includeProfileLastPurchases?: boolean;
+    }) => {
+      const orders = await Vtex.customer.listOrders(
+        args.page ?? 1,
+        args.includeProfileLastPurchases
+      );
+      return orders;
+    },
+  },
+  {
+    name: "getOrder",
+    description: "Retrieves the details of a specific order",
+    inputSchema: {
+      type: "object",
+      properties: {
+        orderId: {
+          type: "string",
+          description: "The ID of the order to retrieve",
+        },
+      },
+      required: ["orderId"],
+      additionalProperties: false,
+    },
+    handler: async (args: { orderId: string }) => {
+      const order = await Vtex.customer.getOrderById(args.orderId);
+      return order;
+    },
+  },
+  {
+    name: "getProfile",
+    description: "Retrieves the profile of the current customer",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+    handler: async () => {
+      const profile = await Vtex.customer.getCustomerProfile();
+      return profile;
+    },
+  },
+  {
+    name: "updateProfile",
+    description: "Updates the profile of the current customer",
+    inputSchema: {
+      type: "object",
+      properties: {
+        fields: {
+          type: "object",
+          description: "Fields to update in the customer profile",
+        },
+      },
+      required: ["fields"],
+      additionalProperties: false,
+    },
+    handler: async (args: { fields: Record<string, any> }) => {
+      const profile = await Vtex.customer.updateCustomerProfile(args.fields);
+      return profile;
     },
   },
 ];
@@ -207,10 +389,10 @@ const resourceTemplates: ResourceTemplate[] = widgets.map((widget) => ({
   _meta: widgetMeta(widget),
 }));
 
-function createPizzazServer(): Server {
+function createEitriOpenAIServer(): Server {
   const server = new Server(
     {
-      name: "pizzaz-node",
+      name: "eitri-openai-node",
       version: "0.1.0",
     },
     {
@@ -354,7 +536,8 @@ function createPizzazServer(): Server {
           },
         ],
         structuredContent: {
-          pizzaTopping: args.pizzaTopping,
+          intention: args.intention,
+          query: args.query,
         },
         _meta: widgetMeta(widget),
       };
@@ -376,7 +559,7 @@ const postPath = "/mcp/messages";
 
 async function handleSseRequest(res: ServerResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  const server = createPizzazServer();
+  const server = createEitriOpenAIServer();
   const transport = new SSEServerTransport(postPath, res);
   const sessionId = transport.sessionId;
 
@@ -478,7 +661,7 @@ httpServer.on("clientError", (err: Error, socket) => {
 });
 
 httpServer.listen(port, () => {
-  console.log(`Pizzaz MCP server listening on http://localhost:${port}`);
+  console.log(`EItri MCP server listening on http://localhost:${port}`);
   console.log(`  SSE stream: GET http://localhost:${port}${ssePath}`);
   console.log(
     `  Message post endpoint: POST http://localhost:${port}${postPath}?sessionId=...`
