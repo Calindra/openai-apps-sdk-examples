@@ -13,17 +13,22 @@ interface SearchProductsResponse {
 }
 
 export default function Home(props) {
+
+
+  const openAI = useOpenAI()
+
   const {
     data,
     loading,
     execute: searchProducts,
   } = useToolCall<SearchProductsResponse>("searchProducts", {
-    query: "Camisas",
+    query: openAI.getToolInput() || "Camisas",
   });
 
   const products = data?.products || [];
 
   useEffect(() => {
+    setStyle();
     const loadProducts = async () => {
       await searchProducts();
     };
@@ -31,22 +36,46 @@ export default function Home(props) {
     loadProducts();
   }, []);
 
+  const setStyle = () => {
+    const style = `
+      @layer utilities {
+    .scrollbar-hide::-webkit-scrollbar {
+      display: none;
+    }
+    .scrollbar-hide {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  }`
+
+    const styleTag = document.createElement('style');
+    styleTag.innerHTML = style;
+    document.head.appendChild(styleTag);
+
+  }
+
+  const openProduct = (product: Product) => {
+    console.log(product)
+    // window.open(product.link, '_blank')
+    window.open(`https://www.lojastorra.com.br${product.link}`, '_blank')
+  }
+
   return (
     <Page
-      className="w-full bg-white flex flex-col"
+      className="w-full h-full bg-white flex flex-col items-center justify-center"
       statusBarTextColor="white"
     >
       <View
         className="w-full max-w-6xl mx-auto flex flex-col p-2"
-        style={{ height: 520 }}
+      // style={{ height: 520 }}
       >
         {/* Carousel lateral */}
-        <View className="flex-1 overflow-x-auto">
-          <View className="flex flex-row gap-3">
+        <View className="flex-1 overflow-x-auto scrollbar-hide">
+          <View className="flex flex-row gap-3 mb-4">
             {loading ? (
               // Skeleton loading
               <>
-                {[1, 2, 3, 4, 5].map((item) => (
+                {[1, 2, 3, 4].map((item) => (
                   <View
                     key={item}
                     className="flex-shrink-0 w-40 rounded-2xl overflow-hidden shadow-md bg-gray-50"
@@ -66,11 +95,12 @@ export default function Home(props) {
               </>
             ) : (
               // Produtos carregados
-              products.map((product, index) => (
+              products.map((product) => (
                 <View
                   key={product.productId}
                   className="flex-shrink-0 w-40 rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer bg-gray-50"
                   style={{ display: "flex", flexDirection: "column" }}
+                  onClick={() => openProduct(product)}
                 >
                   <View className="relative aspect-[3/4]">
                     <Image
@@ -101,10 +131,6 @@ export default function Home(props) {
             )}
           </View>
         </View>
-
-        <Text className="text-black text-xs mt-4 text-center">
-          v{window.__eitriAppConf.version}x
-        </Text>
       </View>
     </Page>
   );

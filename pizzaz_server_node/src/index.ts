@@ -120,14 +120,14 @@ const toolInputSchema = {
     intention: {
       type: "string",
       description:
-        "The intention of user, if request something related to shopping and have some tool to help.",
+        "The intention of user, if request something related to shopping and have some tool to help. This is a tool name to call.",
     },
     query: {
       type: "string",
       description: "The query string to search for products.",
     },
   },
-  required: ["intention"],
+  required: [],
   additionalProperties: false,
 } as const;
 
