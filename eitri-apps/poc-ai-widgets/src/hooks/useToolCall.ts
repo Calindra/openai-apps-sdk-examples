@@ -7,11 +7,22 @@ interface UseToolCallOptions<T> {
   autoLoad?: boolean;
 }
 
+type AvailableTools =
+  | "searchProducts"
+  | "getProduct"
+  | "getCart"
+  | "addToCart"
+  | "removeItemsFromCart"
+  | "listOrders"
+  | "getOrder"
+  | "getProfile"
+  | "updateProfile";
+
 /**
  * Hook para gerenciar chamadas de tools com estado de loading e erro
  */
 export function useToolCall<T = any>(
-  toolName: string,
+  toolName: AvailableTools,
   defaultArgs: Record<string, unknown> = {},
   options: UseToolCallOptions<T> = {}
 ) {
