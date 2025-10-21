@@ -26,12 +26,12 @@ export default function Home(props) {
     "vtexConfig": {
       ecommerceProvider: "VTEX",
       providerInfo: {
-        account: "toymania",
+        account: "torratorra",
         faststore: "torra",
-        vtexCmsUrl: "https://toymania.myvtex.com/",
-        host: "www.toymania.com.br/api/io",
+        vtexCmsUrl: "https://torratorra.myvtex.com/",
+        host: "www.lojastorra.com.br/api/io",
       },
-      api: "https://toymania.myvtex.com",
+      api: "https://torratorra.myvtex.com",
     }
   });
 
