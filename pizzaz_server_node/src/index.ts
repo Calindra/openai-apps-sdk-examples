@@ -145,15 +145,15 @@ function widgetMeta(widget: EitriWidget) {
 const widgets: EitriWidget[] = [
   {
     id: "eitri-shopping",
-    title: "Show Eitri Shopping",
+    title: "Search and display products in an interactive shopping widget. Use this tool WHENEVER the user wants to search, browse, find, or look for products. This displays a rich UI with product listings, images, prices, and allows users to interact with the products.",
     templateUri: "ui://widget/eitri-shopping.html",
-    invoking: "Hand-tossing a Eitri Shopping",
-    invoked: "Served a fresh Eitri Shopping",
+    invoking: "Searching products and preparing shopping widget",
+    invoked: "Product search complete - shopping widget displayed",
     html: `
 <h1>Oops! This is an Eitri Shopping widget.</h1>
     `.trim(),
     // html: `<iframe src="https://release.eitri.calindra.com.br/build/organizations/cf5660ee-bf90-42cd-9a43-9d2c69ee3[…]onment/852ff350-8d65-49cc-815e-12483b37d425/index.html" style="border:0; width:100%; height:400px;"></iframe>`.trim(),
-    responseText: "Rendered a Shopping with Eitri!",
+    responseText: "Here are the products I found for you in an interactive shopping widget. You can browse, filter, and explore the product details.",
   },
 ];
 
@@ -171,19 +171,19 @@ const toolInputSchema = {
     intention: {
       type: "string",
       description:
-        "The intention of user, if request something related to shopping and have some tool to help. This is a tool name to call.",
+        "The user's shopping intention or what they are looking for. Examples: 'searching for shoes', 'looking for electronics', 'browsing clothing', 'finding gifts'.",
     },
     query: {
       type: "string",
-      description: "The query string to search for products.",
+      description: "The search query to find products. This should contain the product name, category, or keywords that the user wants to search for. Examples: 'red sneakers', 'laptops', 'summer dresses', 'smartphones under $500'.",
     },
   },
-  required: [],
+  required: ["query"],
   additionalProperties: false,
 } as const;
 
 const toolInputParser = z.object({
-  intention: z.string(),
+  intention: z.string().optional(),
   query: z.string(),
 });
 
@@ -219,7 +219,7 @@ const vtexConfigProperty = {
 const standaloneTools: StandaloneTool[] = [
   {
     name: "searchProducts",
-    description: "Searches for products using a query string",
+    description: "Internal API tool for fetching raw product data as JSON. Only use this when you need programmatic access to product data for analysis, integration, or backend processing. For displaying products to users, use eitri-shopping instead.",
     inputSchema: {
       type: "object",
       properties: {
