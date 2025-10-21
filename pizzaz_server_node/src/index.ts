@@ -28,6 +28,57 @@ import path from "node:path";
 import { Vtex } from "./VtexAPI";
 import VtexConfig from "./VtexConfig";
 
+// Type for VTEX configuration that can be passed to tools
+type VtexConfigOverride = {
+  ecommerceProvider?: string;
+  providerInfo?: {
+    account?: string;
+    faststore?: string;
+    vtexCmsUrl?: string;
+    host?: string;
+  };
+  api?: string;
+  account?: string;
+  host?: string;
+};
+
+// Helper function to execute a function with a temporary VTEX config
+async function withVtexConfig<T>(
+  config: VtexConfigOverride | undefined,
+  fn: () => Promise<T>
+): Promise<T> {
+  if (!config) {
+    // No config override, just execute the function
+    return fn();
+  }
+
+  // Save current config
+  const originalConfig = { ...VtexConfig.configs };
+
+  try {
+    // Apply override config
+    if (config.account) {
+      VtexConfig.configs.account = config.account;
+      VtexConfig.configs.providerInfo.account = config.account;
+    }
+    if (config.api) {
+      VtexConfig.configs.api = config.api;
+    }
+    if (config.host) {
+      VtexConfig.configs.host = config.host;
+    }
+    if (config.providerInfo?.account) {
+      VtexConfig.configs.providerInfo.account = config.providerInfo.account;
+    }
+
+    // Execute the function with the overridden config
+    return await fn();
+  } finally {
+    // Restore original config
+    VtexConfig.configs = originalConfig;
+  }
+}
+
 type EitriWidget = {
   id: string;
   title: string;
@@ -144,6 +195,27 @@ type StandaloneTool = {
   handler: (args: any) => Promise<any>;
 };
 
+// Common VTEX config schema property
+const vtexConfigProperty = {
+  type: "object",
+  description: "Optional VTEX configuration override for this request",
+  properties: {
+    ecommerceProvider: { type: "string" },
+    providerInfo: {
+      type: "object",
+      properties: {
+        account: { type: "string" },
+        faststore: { type: "string" },
+        vtexCmsUrl: { type: "string" },
+        host: { type: "string" },
+      },
+    },
+    api: { type: "string" },
+    account: { type: "string" },
+    host: { type: "string" },
+  },
+};
+
 const standaloneTools: StandaloneTool[] = [
   {
     name: "searchProducts",
@@ -155,13 +227,19 @@ const standaloneTools: StandaloneTool[] = [
           type: "string",
           description: "Search query string",
         },
+        vtexConfig: vtexConfigProperty,
       },
       required: ["query"],
       additionalProperties: false,
     },
-    handler: async (args: { query: string }) => {
-      const products = await Vtex.catalog.searchProduct(args.query);
-      return products;
+    handler: async (args: {
+      query: string;
+      vtexConfig?: VtexConfigOverride;
+    }) => {
+      return withVtexConfig(args.vtexConfig, async () => {
+        const products = await Vtex.catalog.searchProduct(args.query);
+        return products;
+      });
     },
   },
   {
@@ -174,13 +252,19 @@ const standaloneTools: StandaloneTool[] = [
           type: "string",
           description: "The ID of the product to retrieve",
         },
+        vtexConfig: vtexConfigProperty,
       },
       required: ["productId"],
       additionalProperties: false,
     },
-    handler: async (args: { productId: string }) => {
-      const product = await Vtex.catalog.getProductById(args.productId);
-      return product;
+    handler: async (args: {
+      productId: string;
+      vtexConfig?: VtexConfigOverride;
+    }) => {
+      return withVtexConfig(args.vtexConfig, async () => {
+        const product = await Vtex.catalog.getProductById(args.productId);
+        return product;
+      });
     },
   },
   {
@@ -193,13 +277,19 @@ const standaloneTools: StandaloneTool[] = [
           type: "string",
           description: "The ID of the order form (cart)",
         },
+        vtexConfig: vtexConfigProperty,
       },
       required: ["orderFormId"],
       additionalProperties: false,
     },
-    handler: async (args: { orderFormId: string }) => {
-      const cart = await Vtex.cart.getCartById(args.orderFormId);
-      return cart;
+    handler: async (args: {
+      orderFormId: string;
+      vtexConfig?: VtexConfigOverride;
+    }) => {
+      return withVtexConfig(args.vtexConfig, async () => {
+        const cart = await Vtex.cart.getCartById(args.orderFormId);
+        return cart;
+      });
     },
   },
   {
@@ -234,6 +324,7 @@ const standaloneTools: StandaloneTool[] = [
             required: ["id", "quantity", "seller"],
           },
         },
+        vtexConfig: vtexConfigProperty,
       },
       required: ["orderFormId", "items"],
       additionalProperties: false,
@@ -241,13 +332,16 @@ const standaloneTools: StandaloneTool[] = [
     handler: async (args: {
       orderFormId: string;
       items: Array<{ id: string; quantity: number; seller: string }>;
+      vtexConfig?: VtexConfigOverride;
     }) => {
-      if (args.items.length > 0) {
-        const cart = await Vtex.cart.addItem(args.items[0]);
-        return cart;
-      } else {
-        return { message: "No items provided to add to cart" };
-      }
+      return withVtexConfig(args.vtexConfig, async () => {
+        if (args.items.length > 0) {
+          const cart = await Vtex.cart.addItem(args.items[0]);
+          return cart;
+        } else {
+          return { message: "No items provided to add to cart" };
+        }
+      });
     },
   },
   {
@@ -264,13 +358,20 @@ const standaloneTools: StandaloneTool[] = [
           type: "number",
           description: "Index of the item to remove",
         },
+        vtexConfig: vtexConfigProperty,
       },
       required: ["orderFormId", "index"],
       additionalProperties: false,
     },
-    handler: async (args: { orderFormId: string; index: number }) => {
-      const cart = await Vtex.cart.removeItem(args.index);
-      return cart;
+    handler: async (args: {
+      orderFormId: string;
+      index: number;
+      vtexConfig?: VtexConfigOverride;
+    }) => {
+      return withVtexConfig(args.vtexConfig, async () => {
+        const cart = await Vtex.cart.removeItem(args.index);
+        return cart;
+      });
     },
   },
   {
@@ -287,18 +388,22 @@ const standaloneTools: StandaloneTool[] = [
           type: "boolean",
           description: "Include profile last purchases",
         },
+        vtexConfig: vtexConfigProperty,
       },
       additionalProperties: false,
     },
     handler: async (args: {
       page?: number;
       includeProfileLastPurchases?: boolean;
+      vtexConfig?: VtexConfigOverride;
     }) => {
-      const orders = await Vtex.customer.listOrders(
-        args.page ?? 1,
-        args.includeProfileLastPurchases
-      );
-      return orders;
+      return withVtexConfig(args.vtexConfig, async () => {
+        const orders = await Vtex.customer.listOrders(
+          args.page ?? 1,
+          args.includeProfileLastPurchases
+        );
+        return orders;
+      });
     },
   },
   {
@@ -311,13 +416,19 @@ const standaloneTools: StandaloneTool[] = [
           type: "string",
           description: "The ID of the order to retrieve",
         },
+        vtexConfig: vtexConfigProperty,
       },
       required: ["orderId"],
       additionalProperties: false,
     },
-    handler: async (args: { orderId: string }) => {
-      const order = await Vtex.customer.getOrderById(args.orderId);
-      return order;
+    handler: async (args: {
+      orderId: string;
+      vtexConfig?: VtexConfigOverride;
+    }) => {
+      return withVtexConfig(args.vtexConfig, async () => {
+        const order = await Vtex.customer.getOrderById(args.orderId);
+        return order;
+      });
     },
   },
   {
@@ -325,12 +436,16 @@ const standaloneTools: StandaloneTool[] = [
     description: "Retrieves the profile of the current customer",
     inputSchema: {
       type: "object",
-      properties: {},
+      properties: {
+        vtexConfig: vtexConfigProperty,
+      },
       additionalProperties: false,
     },
-    handler: async () => {
-      const profile = await Vtex.customer.getCustomerProfile();
-      return profile;
+    handler: async (args: { vtexConfig?: VtexConfigOverride }) => {
+      return withVtexConfig(args.vtexConfig, async () => {
+        const profile = await Vtex.customer.getCustomerProfile();
+        return profile;
+      });
     },
   },
   {
@@ -343,13 +458,19 @@ const standaloneTools: StandaloneTool[] = [
           type: "object",
           description: "Fields to update in the customer profile",
         },
+        vtexConfig: vtexConfigProperty,
       },
       required: ["fields"],
       additionalProperties: false,
     },
-    handler: async (args: { fields: Record<string, any> }) => {
-      const profile = await Vtex.customer.updateCustomerProfile(args.fields);
-      return profile;
+    handler: async (args: {
+      fields: Record<string, any>;
+      vtexConfig?: VtexConfigOverride;
+    }) => {
+      return withVtexConfig(args.vtexConfig, async () => {
+        const profile = await Vtex.customer.updateCustomerProfile(args.fields);
+        return profile;
+      });
     },
   },
 ];
@@ -469,7 +590,7 @@ function createEitriOpenAIServer(workspaceId: string): Server {
               )
               .replace(
                 /<script\s+crossorigin(?:="[^"]*")?\s+src="https:\/\/cdn\.83io\.com\.br\/library\/eitri-bifrost\/assets\/[\d.]+\/eitri-bifrost-[\d.]+\.js"><\/script>/g,
-                (match) => `
+                (match: string) => `
                 ${match}
                 <script>
                   ${bifrost}
@@ -626,10 +747,16 @@ const httpServer = createServer(
     const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
 
     // Parse workspaceId from URL pattern: /eitri-agents-mcp/workspace/:workspaceId/mcp or /eitri-agents-mcp/workspace/:workspaceId/mcp/messages
-    const pathMatch = url.pathname.match(/^\/eitri-agents-mcp\/workspace\/([^\/]+)\/mcp(\/messages)?$/);
+    const pathMatch = url.pathname.match(
+      /^\/eitri-agents-mcp\/workspace\/([^\/]+)\/mcp(\/messages)?$/
+    );
 
     if (!pathMatch) {
-      res.writeHead(404).end("Not Found - Use format: /eitri-agents-mcp/workspace/:workspaceId/mcp");
+      res
+        .writeHead(404)
+        .end(
+          "Not Found - Use format: /eitri-agents-mcp/workspace/:workspaceId/mcp"
+        );
       return;
     }
 
@@ -672,9 +799,13 @@ httpServer.on("clientError", (err: Error, socket) => {
 
 httpServer.listen(port, () => {
   console.log(`Eitri MCP server listening on http://localhost:${port}`);
-  console.log(`  SSE stream: GET http://localhost:${port}/eitri-agents-mcp/workspace/:workspaceId/mcp`);
+  console.log(
+    `  SSE stream: GET http://localhost:${port}/eitri-agents-mcp/workspace/:workspaceId/mcp`
+  );
   console.log(
     `  Message post endpoint: POST http://localhost:${port}/eitri-agents-mcp/workspace/:workspaceId/mcp/messages?sessionId=...`
   );
-  console.log(`  Example: GET http://localhost:${port}/eitri-agents-mcp/workspace/14f2c58d-33d6-47b7-bf93-3e19d5443082/mcp`);
+  console.log(
+    `  Example: GET http://localhost:${port}/eitri-agents-mcp/workspace/14f2c58d-33d6-47b7-bf93-3e19d5443082/mcp`
+  );
 });

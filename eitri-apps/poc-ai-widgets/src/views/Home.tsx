@@ -22,7 +22,17 @@ export default function Home(props) {
     loading,
     execute: searchProducts,
   } = useToolCall<SearchProductsResponse>("searchProducts", {
-    query: openAI.getToolInput() || "Camisas",
+    query: openAI.getToolInput() || "Batman",
+    "vtexConfig": {
+      ecommerceProvider: "VTEX",
+      providerInfo: {
+        account: "toymania",
+        faststore: "torra",
+        vtexCmsUrl: "https://toymania.myvtex.com/",
+        host: "www.toymania.com.br/api/io",
+      },
+      api: "https://toymania.myvtex.com",
+    }
   });
 
   const products = data?.products || [];
