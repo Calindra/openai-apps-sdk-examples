@@ -55,7 +55,6 @@ export default function Home(props) {
   }
 
   const openProduct = (product: Product) => {
-    console.log(product)
     // window.open(product.link, '_blank')
     window.open(`https://www.lojastorra.com.br${product.link}`, '_blank')
   }

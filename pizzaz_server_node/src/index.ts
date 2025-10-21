@@ -389,7 +389,7 @@ const resourceTemplates: ResourceTemplate[] = widgets.map((widget) => ({
   _meta: widgetMeta(widget),
 }));
 
-function createEitriOpenAIServer(): Server {
+function createEitriOpenAIServer(workspaceId: string): Server {
   const server = new Server(
     {
       name: "eitri-openai-node",
@@ -423,7 +423,6 @@ function createEitriOpenAIServer(): Server {
           widget.templateUri
         }) ${JSON.stringify(request.params)}`
       );
-      const workspaceId = "14f2c58d-33d6-47b7-bf93-3e19d5443082";
 
       // const res = await axios.get(`https://release.eitri.calindra.com.br/build/organizations/cf5660ee-bf90-42cd-9a43-9d2c69ee3c89/applications/749d6f6f-f10f-4448-b36e-9c484b1293b8/eitri-apps/eitriapp-berserk/1.4.9/environment/852ff350-8d65-49cc-815e-12483b37d425/index.html`)
       // const res = await axios.get(`https://release.eitri.calindra.com.br/build/organizations/cf5660ee-bf90-42cd-9a43-9d2c69ee3c89/applications/749d6f6f-f10f-4448-b36e-9c484b1293b8/eitri-apps/eitriapp-berserk/1.4.18/environment/852ff350-8d65-49cc-815e-12483b37d425/index.html`)
@@ -453,29 +452,28 @@ function createEitriOpenAIServer(): Server {
             mimeType: "text/html+skybridge",
             text: res.data
               .replace(
-                /<base href="https:\/\/api.eitri.tech\/runes-foundry\/user\/[0-9a-z\-]+\/">/,
+                /<base href="https:\/\/api\.eitri\.tech\/runes-foundry\/user\/[0-9a-z\-]+\/">/g,
                 ""
               )
               .replace(
-                /<link rel="stylesheet" href=".\/index.css">/,
+                /<link rel="stylesheet" href="\.\/index\.css">/g,
                 `<link rel="stylesheet" href="https://api.eitri.tech/runes-foundry/user/${workspaceId}/index.css">`
               )
               .replace(
-                /<script src=".\/index.js"><\/script>/,
+                /<script src="\.\/index\.js"><\/script>/g,
                 `<script src="https://api.eitri.tech/runes-foundry/user/${workspaceId}/index.js"></script>`
               )
               .replace(
-                /<script data-remove-on-publish="true" src=".\/common\/ConsoleProxy.js"><\/script>/,
+                /<script\s+data-remove-on-publish="true"\s+src="\.\/common\/ConsoleProxy\.js"><\/script>/g,
                 `<script src="https://api.eitri.tech/runes-foundry/user/${workspaceId}/common/ConsoleProxy.js"></script>`
               )
               .replace(
-                /<script crossorigin="" src="https:\/\/cdn.83io.com.br\/library\/eitri-bifrost\/assets\/3.10.0\/eitri-bifrost-3.10.0.js"><\/script>/,
-                `
-                <script crossorigin="" src="https://cdn.83io.com.br/library/eitri-bifrost/assets/3.10.0/eitri-bifrost-3.10.0.js"></script>
+                /<script\s+crossorigin(?:="[^"]*")?\s+src="https:\/\/cdn\.83io\.com\.br\/library\/eitri-bifrost\/assets\/[\d.]+\/eitri-bifrost-[\d.]+\.js"><\/script>/g,
+                (match) => `
+                ${match}
                 <script>
                   ${bifrost}
                 </script>
-                
                 `
               ),
             _meta: widgetMeta(widget),
@@ -550,20 +548,19 @@ function createEitriOpenAIServer(): Server {
 type SessionRecord = {
   server: Server;
   transport: SSEServerTransport;
+  workspaceId: string;
 };
 
 const sessions = new Map<string, SessionRecord>();
 
-const ssePath = "/mcp";
-const postPath = "/mcp/messages";
-
-async function handleSseRequest(res: ServerResponse) {
+async function handleSseRequest(res: ServerResponse, workspaceId: string) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  const server = createEitriOpenAIServer();
+  const server = createEitriOpenAIServer(workspaceId);
+  const postPath = `/eitri-agents-mcp/workspace/${workspaceId}/mcp/messages`;
   const transport = new SSEServerTransport(postPath, res);
   const sessionId = transport.sessionId;
 
-  sessions.set(sessionId, { server, transport });
+  sessions.set(sessionId, { server, transport, workspaceId });
 
   transport.onclose = async () => {
     sessions.delete(sessionId);
@@ -628,6 +625,19 @@ const httpServer = createServer(
 
     const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
 
+    // Parse workspaceId from URL pattern: /eitri-agents-mcp/workspace/:workspaceId/mcp or /eitri-agents-mcp/workspace/:workspaceId/mcp/messages
+    const pathMatch = url.pathname.match(/^\/eitri-agents-mcp\/workspace\/([^\/]+)\/mcp(\/messages)?$/);
+
+    if (!pathMatch) {
+      res.writeHead(404).end("Not Found - Use format: /eitri-agents-mcp/workspace/:workspaceId/mcp");
+      return;
+    }
+
+    const workspaceId = pathMatch[1];
+    const isMessagesPath = pathMatch[2] === "/messages";
+    const ssePath = `/eitri-agents-mcp/workspace/${workspaceId}/mcp`;
+    const postPath = `/eitri-agents-mcp/workspace/${workspaceId}/mcp/messages`;
+
     if (
       req.method === "OPTIONS" &&
       (url.pathname === ssePath || url.pathname === postPath)
@@ -641,12 +651,12 @@ const httpServer = createServer(
       return;
     }
 
-    if (req.method === "GET" && url.pathname === ssePath) {
-      await handleSseRequest(res);
+    if (req.method === "GET" && !isMessagesPath) {
+      await handleSseRequest(res, workspaceId);
       return;
     }
 
-    if (req.method === "POST" && url.pathname === postPath) {
+    if (req.method === "POST" && isMessagesPath) {
       await handlePostMessage(req, res, url);
       return;
     }
@@ -661,9 +671,10 @@ httpServer.on("clientError", (err: Error, socket) => {
 });
 
 httpServer.listen(port, () => {
-  console.log(`EItri MCP server listening on http://localhost:${port}`);
-  console.log(`  SSE stream: GET http://localhost:${port}${ssePath}`);
+  console.log(`Eitri MCP server listening on http://localhost:${port}`);
+  console.log(`  SSE stream: GET http://localhost:${port}/eitri-agents-mcp/workspace/:workspaceId/mcp`);
   console.log(
-    `  Message post endpoint: POST http://localhost:${port}${postPath}?sessionId=...`
+    `  Message post endpoint: POST http://localhost:${port}/eitri-agents-mcp/workspace/:workspaceId/mcp/messages?sessionId=...`
   );
+  console.log(`  Example: GET http://localhost:${port}/eitri-agents-mcp/workspace/14f2c58d-33d6-47b7-bf93-3e19d5443082/mcp`);
 });
